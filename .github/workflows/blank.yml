@@ -1,4 +1,3 @@
-# .github/workflows/blank.yml
 name: YouTube Downloader
 on:
   workflow_dispatch:
@@ -22,11 +21,9 @@ jobs:
 
       - name: Download Process
         env:
-          COOKIES_B64: ${{ secrets.YOUTUBE_COOKIES }}
+          COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
-          # המרת ה-Base64 חזרה לקובץ עוגיות
-          echo "$COOKIES_B64" | base64 --decode > cookies.txt
-          
+          echo "$COOKIES" > cookies.txt
           if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
             yt-dlp -x --audio-format mp3 --cookies cookies.txt "${{ github.event.inputs.video_url }}" -o "downloaded_file.mp3"
           else
