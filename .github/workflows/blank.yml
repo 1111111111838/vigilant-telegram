@@ -9,7 +9,7 @@ on:
       quality_profile:
         description: 'Quality Profile'
         required: true
-        default: 'high_video'
+        default: 'mp4_standard'
 
 jobs:
   download:
@@ -24,27 +24,31 @@ jobs:
         env:
           COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
-          echo "$COOKIES" > cookies.txt
+          # יצירת קובץ העוגיות בצורה בטוחה ושמירה על פורמט Netscape
+          printf "%s" "$COOKIES" > cookies.txt
           
+          # הדפסת השורה הראשונה ללוג לבדיקת תקינות (לא חושף מידע רגיש)
+          head -n 1 cookies.txt
+
           case "${{ github.event.inputs.quality_profile }}" in
             "high_video")
-              # וידאו הכי איכותי (בדרך כלל MKV/WebM אם זמין, נמיר ל-MP4)
+              # וידאו הכי איכותי (Best available)
               yt-dlp -f "bestvideo+bestaudio/best" --merge-output-format mp4 --cookies cookies.txt "${{ github.event.inputs.video_url }}" -o "downloaded_file.mp4"
               ;;
             "mp4_standard")
-              # MP4 איכותי (תואם לרוב המכשירים)
+              # MP4 איכותי סטנדרטי
               yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --cookies cookies.txt "${{ github.event.inputs.video_url }}" -o "downloaded_file.mp4"
               ;;
             "fast_video")
-              # וידאו מהיר (איכות נמוכה יותר, קובץ קטן)
+              # וידאו מהיר ברזולוציה נמוכה
               yt-dlp -f "worstvideo+worstaudio/worst" --cookies cookies.txt "${{ github.event.inputs.video_url }}" -o "downloaded_file.mp4"
               ;;
             "high_mp3")
-              # MP3 איכותי (320kbps)
+              # MP3 איכותי 320kbps
               yt-dlp -x --audio-format mp3 --audio-quality 0 --cookies cookies.txt "${{ github.event.inputs.video_url }}" -o "downloaded_file.mp3"
               ;;
             "fast_mp3")
-              # MP3 מהיר (איכות נמוכה, הורדה מהירה)
+              # MP3 מהיר איכות נמוכה
               yt-dlp -x --audio-format mp3 --audio-quality 9 --cookies cookies.txt "${{ github.event.inputs.video_url }}" -o "downloaded_file.mp3"
               ;;
           esac
@@ -54,3 +58,4 @@ jobs:
         with:
           name: youtube-download
           path: downloaded_file.*
+          retention-days: 1
