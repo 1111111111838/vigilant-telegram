@@ -1,4 +1,4 @@
-name: YouTube Downloader Final
+name: YouTube Downloader with Cookies
 
 on:
   workflow_dispatch:
@@ -7,49 +7,41 @@ on:
         description: 'לינק לסרטון'
         required: true
       file_format:
-        description: 'פורמט'
+        description: 'פורמט (mp4/mp3)'
         required: true
         default: 'mp4'
-        type: choice
-        options:
-          - mp4
-          - mp3
 
 jobs:
   download:
     runs-on: ubuntu-latest
-    env:
-      UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
-          # התקנת deno לפתרון בעיית ה-JS runtime
-          curl -fsSL https://deno.land/install.sh | sh
-          echo "$HOME/.deno/bin" >> $GITHUB_PATH
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Install yt-dlp
         run: python3 -m pip install -U yt-dlp
 
       - name: Run Download
         run: |
-          COOKIE_ARG=""
-          if [ -f "cookies.txt" ]; then
-            COOKIE_ARG="--cookies cookies.txt"
+          # וידוא שהקובץ קיים לפני ההרצה
+          if [ ! -f "cookies.txt" ]; then
+            echo "Error: cookies.txt not found!"
+            exit 1
           fi
           
+          echo "Starting download with cookies..."
+          
           if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp $COOKIE_ARG --user-agent "$UA" -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "file.%(ext)s"
+            yt-dlp --cookies cookies.txt -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
           else
-            yt-dlp $COOKIE_ARG --user-agent "$UA" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "file.%(ext)s"
+            yt-dlp --cookies cookies.txt -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
           fi
 
-      - name: Upload
+      - name: Upload Result
         uses: actions/upload-artifact@v4
         with:
-          name: download
-          path: file.*
+          name: youtube-file
+          path: output.*
