@@ -1,19 +1,23 @@
-name: YouTube Downloader Fixed
+name: YouTube Downloader - Fixed Anti-Bot
 
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'הכנס לינק מיוטיוב'
+        description: 'הכנס לינק מיוטיוב להורדה'
         required: true
       file_format:
-        description: 'בחר פורמט'
+        description: 'בחר פורמט קובץ'
         required: true
         default: 'mp4'
         type: choice
         options:
           - mp4
           - mp3
+
+env:
+  # פותר את אזהרת ה-Node.js שקיבלת בלוג
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   download_job:
@@ -22,8 +26,10 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install FFmpeg & Runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg nodejs
 
       - name: Install latest yt-dlp
         run: |
@@ -32,17 +38,26 @@ jobs:
 
       - name: Run Download
         run: |
-          # שימוש בפרמטרים לשיפור התאימות ועקיפת חסימות
-          if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp --no-check-certificates --no-cache-dir --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "video.%(ext)s"
-          else
-            yt-dlp --no-check-certificates --no-cache-dir --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "video.%(ext)s"
+          # בדיקה אם קיים קובץ עוגיות (cookies.txt) במאגר
+          COOKIE_ARG=""
+          if [ -f "cookies.txt" ]; then
+            COOKIE_ARG="--cookies cookies.txt"
+            echo "Using cookies.txt for authentication..."
           fi
 
-      - name: Upload Artifact
+          # פקודת ההורדה עם User-Agent של דפדפן רגיל ועקיפת הגבלות
+          COMMON_ARGS="$COOKIE_ARG --no-check-certificates --no-cache-dir --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'"
+
+          if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
+            yt-dlp $COMMON_ARGS -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "downloaded_file.%(ext)s"
+          else
+            yt-dlp $COMMON_ARGS -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "downloaded_file.%(ext)s"
+          fi
+
+      - name: Upload to GitHub
         uses: actions/upload-artifact@v4
         if: success()
         with:
-          name: my-video
-          path: video.*
+          name: youtube-download
+          path: downloaded_file.*
           retention-days: 1
