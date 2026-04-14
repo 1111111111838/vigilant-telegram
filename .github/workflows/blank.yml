@@ -1,13 +1,13 @@
-name: YouTube Downloader - Fixed Anti-Bot
+name: YouTube Downloader Final
 
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'הכנס לינק מיוטיוב להורדה'
+        description: 'לינק לסרטון'
         required: true
       file_format:
-        description: 'בחר פורמט קובץ'
+        description: 'פורמט'
         required: true
         default: 'mp4'
         type: choice
@@ -15,49 +15,41 @@ on:
           - mp4
           - mp3
 
-env:
-  # פותר את אזהרת ה-Node.js שקיבלת בלוג
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
-  download_job:
+  download:
     runs-on: ubuntu-latest
+    env:
+      UA: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
     steps:
-      - name: Checkout Repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg & Runtime
+      - name: Install Tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg nodejs
+          sudo apt-get install -y ffmpeg
+          # התקנת deno לפתרון בעיית ה-JS runtime
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> $GITHUB_PATH
 
-      - name: Install latest yt-dlp
-        run: |
-          python3 -m pip install -U pip
-          python3 -m pip install -U yt-dlp
+      - name: Install yt-dlp
+        run: python3 -m pip install -U yt-dlp
 
       - name: Run Download
         run: |
-          # בדיקה אם קיים קובץ עוגיות (cookies.txt) במאגר
           COOKIE_ARG=""
           if [ -f "cookies.txt" ]; then
             COOKIE_ARG="--cookies cookies.txt"
-            echo "Using cookies.txt for authentication..."
           fi
-
-          # פקודת ההורדה עם User-Agent של דפדפן רגיל ועקיפת הגבלות
-          COMMON_ARGS="$COOKIE_ARG --no-check-certificates --no-cache-dir --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'"
-
+          
           if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp $COMMON_ARGS -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "downloaded_file.%(ext)s"
+            yt-dlp $COOKIE_ARG --user-agent "$UA" -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "file.%(ext)s"
           else
-            yt-dlp $COMMON_ARGS -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "downloaded_file.%(ext)s"
+            yt-dlp $COOKIE_ARG --user-agent "$UA" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "file.%(ext)s"
           fi
 
-      - name: Upload to GitHub
+      - name: Upload
         uses: actions/upload-artifact@v4
-        if: success()
         with:
-          name: youtube-download
-          path: downloaded_file.*
-          retention-days: 1
+          name: download
+          path: file.*
