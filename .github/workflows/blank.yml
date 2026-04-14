@@ -1,4 +1,4 @@
-name: YouTube Downloader via yt-dlp
+name: YouTube Downloader Fixed
 
 on:
   workflow_dispatch:
@@ -22,23 +22,27 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Install yt-dlp & FFmpeg
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Install latest yt-dlp
         run: |
-          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-          sudo chmod a+rx /usr/local/bin/yt-dlp
-          sudo apt-get update && sudo apt-get install -y ffmpeg
+          python3 -m pip install -U pip
+          python3 -m pip install -U yt-dlp
 
       - name: Run Download
         run: |
+          # שימוש בפרמטרים לשיפור התאימות ועקיפת חסימות
           if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "downloaded_file.%(ext)s"
+            yt-dlp --no-check-certificates --no-cache-dir --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "video.%(ext)s"
           else
-            yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "downloaded_file.%(ext)s"
+            yt-dlp --no-check-certificates --no-cache-dir --user-agent "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "video.%(ext)s"
           fi
 
-      - name: Upload to GitHub
+      - name: Upload Artifact
         uses: actions/upload-artifact@v4
+        if: success()
         with:
-          name: my-downloaded-file
-          path: downloaded_file.*
-          retention-days: 1 # הקובץ יימחק מגיטהב אחרי יום אחד כדי לחסוך מקום
+          name: my-video
+          path: video.*
+          retention-days: 1
