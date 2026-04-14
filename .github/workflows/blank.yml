@@ -1,66 +1,63 @@
-name: YouTube Downloader Pro
+name: YouTube Downloader Final V3
 
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'הכנס לינק מיוטיוב'
+        description: 'קישור ליוטיוב'
         required: true
       file_format:
-        description: 'בחר פורמט'
+        description: 'פורמט (mp4/mp3)'
         required: true
         default: 'mp4'
-        type: choice
-        options:
-          - mp4
-          - mp3
 
 env:
-  # פותר את אזהרת ה-Node.js שמופיעה לך
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  download_job:
+  download:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Setup Tools
+      - name: Install Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
           curl -fsSL https://deno.land/install.sh | sh
           echo "$HOME/.deno/bin" >> $GITHUB_PATH
+
+      - name: Setup Cookies
+        run: |
+          if [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
+            echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+          fi
 
       - name: Install yt-dlp
         run: python3 -m pip install -U yt-dlp
 
       - name: Run Download
-        shell: bash
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
-          
-          # אם יש סוד ב-Secrets, ניצור קובץ עוגיות
-          if [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
-             echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-          fi
-
-          # הגדרת משתנים
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-          URL="${{ github.event.inputs.video_url }}"
           
-          echo "Starting download..."
+          echo "Starting download process..."
           
-          # הרצה בתוך בלוק שמתעלם משגיאות טקסט זניחות
           if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 "$URL" -o "output.%(ext)s" || true
+            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
           else
-            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "$URL" -o "output.%(ext)s" || true
+            # הורדה ישירה לפורמט mp4 משולב
+            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
           fi
 
-      - name: Check File & Upload
+      - name: Verify and Upload
+        if: always() # ירוץ גם אם היו אזהרות
         uses: actions/upload-artifact@v4
         with:
-          name: youtube-file
-          path: output.*
+          name: youtube-download
+          path: |
+            output.mp4
+            output.mp3
+          if-no-files-found: warn # לא יכשיל את הריצה אם קובץ אחד חסר
           retention-days: 1
