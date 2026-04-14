@@ -1,4 +1,5 @@
 name: YouTube Downloader Final V3
+
 on:
   workflow_dispatch:
     inputs:
@@ -6,7 +7,7 @@ on:
         description: 'קישור ליוטיוב'
         required: true
       quality_profile:
-        description: 'פרופיל איכות'
+        description: 'פרופיל איכות (high_video/mp4_standard/fast_video/high_mp3/fast_mp3)'
         required: true
         default: 'mp4_standard'
 
@@ -39,23 +40,26 @@ jobs:
       - name: Run Download
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
+          # הגדרת User-Agent דפדפן עדכני כדי למנוע חסימות
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+          
+          echo "Starting download process with quality: ${{ github.event.inputs.quality_profile }}"
           
           case "${{ github.event.inputs.quality_profile }}" in
             "high_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output.mp4"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output.mp4"
               ;;
             "mp4_standard")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.mp4"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.mp4"
               ;;
             "fast_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" -f "worstvideo+worstaudio/worst" "${{ github.event.inputs.video_url }}" -o "output.mp4"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" "${{ github.event.inputs.video_url }}" -o "output.mp4"
               ;;
             "high_mp3")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output.mp3"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output.mp3"
               ;;
             "fast_mp3")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output.mp3"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output.mp3"
               ;;
           esac
 
