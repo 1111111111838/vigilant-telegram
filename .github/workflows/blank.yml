@@ -1,4 +1,4 @@
-name: YouTube Downloader with Cookies
+name: YouTube Downloader - Ultimate Fix
 
 on:
   workflow_dispatch:
@@ -18,30 +18,41 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install Runtime & FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          # התקנת deno באופן מהיר וקישורו לנתיב
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> $GITHUB_PATH
 
-      - name: Install yt-dlp
+      - name: Prepare Cookies
+        run: |
+          if [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
+            echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
+          fi
+
+      - name: Install latest yt-dlp
         run: python3 -m pip install -U yt-dlp
 
       - name: Run Download
         run: |
-          # וידוא שהקובץ קיים לפני ההרצה
-          if [ ! -f "cookies.txt" ]; then
-            echo "Error: cookies.txt not found!"
-            exit 1
-          fi
+          # וידוא שהנתיב של deno מעודכן לריצה הנוכחית
+          export PATH="$HOME/.deno/bin:$PATH"
           
-          echo "Starting download with cookies..."
+          # הגדרות עקיפה חזקות
+          COMMON_ARGS="--cookies cookies.txt --no-check-certificates --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'"
           
           if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp --cookies cookies.txt -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
+            yt-dlp $COMMON_ARGS -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
           else
-            yt-dlp --cookies cookies.txt -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
+            # שימוש בפורמט MP4 פשוט כדי למנוע בעיות פענוח
+            yt-dlp $COMMON_ARGS -f "best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
           fi
 
       - name: Upload Result
         uses: actions/upload-artifact@v4
+        if: success()
         with:
           name: youtube-file
           path: output.*
