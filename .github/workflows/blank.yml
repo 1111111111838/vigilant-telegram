@@ -1,15 +1,14 @@
 name: YouTube Downloader Final V3
-
 on:
   workflow_dispatch:
     inputs:
       video_url:
         description: 'קישור ליוטיוב'
         required: true
-      file_format:
-        description: 'פורמט (mp4/mp3)'
+      quality_profile:
+        description: 'פרופיל איכות'
         required: true
-        default: 'mp4'
+        default: 'mp4_standard'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -42,22 +41,31 @@ jobs:
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           
-          echo "Starting download process..."
-          
-          if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
-          else
-            # הורדה ישירה לפורמט mp4 משולב
-            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
-          fi
+          case "${{ github.event.inputs.quality_profile }}" in
+            "high_video")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output.mp4"
+              ;;
+            "mp4_standard")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.mp4"
+              ;;
+            "fast_video")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" -f "worstvideo+worstaudio/worst" "${{ github.event.inputs.video_url }}" -o "output.mp4"
+              ;;
+            "high_mp3")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output.mp3"
+              ;;
+            "fast_mp3")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output.mp3"
+              ;;
+          esac
 
       - name: Verify and Upload
-        if: always() # ירוץ גם אם היו אזהרות
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: youtube-download
           path: |
             output.mp4
             output.mp3
-          if-no-files-found: warn # לא יכשיל את הריצה אם קובץ אחד חסר
+          if-no-files-found: warn
           retention-days: 1
