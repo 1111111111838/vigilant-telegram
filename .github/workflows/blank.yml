@@ -22,7 +22,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg
-          # התקנת deno באופן מהיר וקישורו לנתיב
           curl -fsSL https://deno.land/install.sh | sh
           echo "$HOME/.deno/bin" >> $GITHUB_PATH
 
@@ -37,17 +36,19 @@ jobs:
 
       - name: Run Download
         run: |
-          # וידוא שהנתיב של deno מעודכן לריצה הנוכחית
           export PATH="$HOME/.deno/bin:$PATH"
           
-          # הגדרות עקיפה חזקות
-          COMMON_ARGS="--cookies cookies.txt --no-check-certificates --user-agent 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'"
+          # הגדרה בטוחה של המשתנים כדי למנוע שגיאות תחביר
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+          
+          # שימוש ב-remote-components כדי לפתור את ה-n challenge
+          COMMON_ARGS="--cookies cookies.txt --no-check-certificates --user-agent \"$UA\" --remote-components ejs:github"
           
           if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
             yt-dlp $COMMON_ARGS -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
           else
-            # שימוש בפורמט MP4 פשוט כדי למנוע בעיות פענוח
-            yt-dlp $COMMON_ARGS -f "best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
+            # ניסיון להוריד את הפורמט הטוב ביותר שזמין ללא חסימה
+            yt-dlp $COMMON_ARGS -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
           fi
 
       - name: Upload Result
