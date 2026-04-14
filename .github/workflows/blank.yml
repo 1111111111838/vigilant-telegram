@@ -1,37 +1,63 @@
-name: YouTube Downloader
+name: YouTube Downloader Final V3
+
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'YouTube URL'
+        description: 'קישור ליוטיוב'
         required: true
       file_format:
-        description: 'mp4 or mp3'
+        description: 'פורמט (mp4/mp3)'
         required: true
         default: 'mp4'
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   download:
     runs-on: ubuntu-latest
     steps:
-      - name: Install yt-dlp
-        run: |
-          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
-          sudo chmod a+rx /usr/local/bin/yt-dlp
+      - name: Checkout Code
+        uses: actions/checkout@v4
 
-      - name: Download Process
-        env:
-          COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+      - name: Install Tools
         run: |
-          echo "$COOKIES" > cookies.txt
-          if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp -x --audio-format mp3 --cookies cookies.txt "${{ github.event.inputs.video_url }}" -o "downloaded_file.mp3"
-          else
-            yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --cookies cookies.txt "${{ github.event.inputs.video_url }}" -o "downloaded_file.mp4"
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+          curl -fsSL https://deno.land/install.sh | sh
+          echo "$HOME/.deno/bin" >> $GITHUB_PATH
+
+      - name: Setup Cookies
+        run: |
+          if [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
+            echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
           fi
 
-      - name: Upload Result
+      - name: Install yt-dlp
+        run: python3 -m pip install -U yt-dlp
+
+      - name: Run Download
+        run: |
+          export PATH="$HOME/.deno/bin:$PATH"
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+          
+          echo "Starting download process..."
+          
+          if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
+            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
+          else
+            # הורדה ישירה לפורמט mp4 משולב
+            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
+          fi
+
+      - name: Verify and Upload
+        if: always() # ירוץ גם אם היו אזהרות
         uses: actions/upload-artifact@v4
         with:
           name: youtube-download
-          path: downloaded_file.*
+          path: |
+            output.mp4
+            output.mp3
+          if-no-files-found: warn # לא יכשיל את הריצה אם קובץ אחד חסר
+          retention-days: 1
