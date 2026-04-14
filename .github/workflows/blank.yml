@@ -1,0 +1,44 @@
+name: YouTube Downloader via yt-dlp
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'הכנס לינק מיוטיוב'
+        required: true
+      file_format:
+        description: 'בחר פורמט'
+        required: true
+        default: 'mp4'
+        type: choice
+        options:
+          - mp4
+          - mp3
+
+jobs:
+  download_job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Install yt-dlp & FFmpeg
+        run: |
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+          sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Run Download
+        run: |
+          if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
+            yt-dlp -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "downloaded_file.%(ext)s"
+          else
+            yt-dlp -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "downloaded_file.%(ext)s"
+          fi
+
+      - name: Upload to GitHub
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-downloaded-file
+          path: downloaded_file.*
+          retention-days: 1 # הקובץ יימחק מגיטהב אחרי יום אחד כדי לחסוך מקום
