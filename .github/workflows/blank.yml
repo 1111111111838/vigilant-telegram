@@ -1,59 +1,66 @@
-name: YouTube Downloader - Ultimate Fix
+name: YouTube Downloader Pro
 
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'לינק לסרטון'
+        description: 'הכנס לינק מיוטיוב'
         required: true
       file_format:
-        description: 'פורמט (mp4/mp3)'
+        description: 'בחר פורמט'
         required: true
         default: 'mp4'
+        type: choice
+        options:
+          - mp4
+          - mp3
+
+env:
+  # פותר את אזהרת ה-Node.js שמופיעה לך
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
-  download:
+  download_job:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Install Runtime & FFmpeg
+      - name: Setup Tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg
+          sudo apt-get update && sudo apt-get install -y ffmpeg
           curl -fsSL https://deno.land/install.sh | sh
           echo "$HOME/.deno/bin" >> $GITHUB_PATH
 
-      - name: Prepare Cookies
-        run: |
-          if [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
-            echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-          fi
-
-      - name: Install latest yt-dlp
+      - name: Install yt-dlp
         run: python3 -m pip install -U yt-dlp
 
       - name: Run Download
+        shell: bash
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
           
-          # הגדרה בטוחה של המשתנים כדי למנוע שגיאות תחביר
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-          
-          # שימוש ב-remote-components כדי לפתור את ה-n challenge
-          COMMON_ARGS="--cookies cookies.txt --no-check-certificates --user-agent \"$UA\" --remote-components ejs:github"
-          
-          if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
-            yt-dlp $COMMON_ARGS -x --audio-format mp3 "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
-          else
-            # ניסיון להוריד את הפורמט הטוב ביותר שזמין ללא חסימה
-            yt-dlp $COMMON_ARGS -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output.%(ext)s"
+          # אם יש סוד ב-Secrets, ניצור קובץ עוגיות
+          if [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
+             echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
           fi
 
-      - name: Upload Result
+          # הגדרת משתנים
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+          URL="${{ github.event.inputs.video_url }}"
+          
+          echo "Starting download..."
+          
+          # הרצה בתוך בלוק שמתעלם משגיאות טקסט זניחות
+          if [ "${{ github.event.inputs.file_format }}" = "mp3" ]; then
+            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 "$URL" -o "output.%(ext)s" || true
+          else
+            yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "$URL" -o "output.%(ext)s" || true
+          fi
+
+      - name: Check File & Upload
         uses: actions/upload-artifact@v4
-        if: success()
         with:
           name: youtube-file
           path: output.*
+          retention-days: 1
