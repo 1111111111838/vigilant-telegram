@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V7.3 (API Powered)
+name: YouTube Downloader Final V7.4 (API Powered)
 
 on:
   workflow_dispatch:
@@ -17,18 +17,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        [cite_start]uses: actions/checkout@v4 [cite: 2]
+        uses: actions/checkout@v4
 
       - name: Install Tools
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg zip jq [cite: 3]
-          curl -fsSL https://deno.land/install.sh | sh [cite: 4]
+          sudo apt-get update && sudo apt-get install -y ffmpeg zip jq
+          curl -fsSL https://deno.land/install.sh | sh
           echo "$HOME/.deno/bin" >> $GITHUB_PATH
 
       - name: Setup Cookies
         run: |
-          if [ -n "${{ github.event.inputs.dynamic_cookies }}" ]; then [cite: 5]
-            echo "${{ github.event.inputs.dynamic_cookies }}" | base64 --decode > cookies.txt [cite: 6]
+          if [ -n "${{ github.event.inputs.dynamic_cookies }}" ]; then
+            echo "${{ github.event.inputs.dynamic_cookies }}" | base64 --decode > cookies.txt
           else
             touch cookies.txt
           fi
@@ -39,48 +39,45 @@ jobs:
       - name: Extract Name via YouTube API
         id: api_name
         run: |
-          URL="${{ github.event.inputs.video_url }}" [cite: 7]
-          API_KEY="${{ github.event.inputs.yt_api_key }}" [cite: 7]
-          FINAL_NAME="yt_download_$(date +%m%d_%H%M)" [cite: 7]
+          URL="${{ github.event.inputs.video_url }}"
+          API_KEY="${{ github.event.inputs.yt_api_key }}"
+          FINAL_NAME="yt_download_$(date +%m%d_%H%M)"
 
-          [cite_start]if [ -n "$API_KEY" ]; then [cite: 8]
-            # 1. חילוץ שם פלייליסט
-            [cite_start]if [[ $URL == *"list="* ]]; then [cite: 9]
-              [cite_start]ID=$(echo $URL | grep -oP 'list=\K[^&]+') [cite: 9]
-              [cite_start]RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty') [cite: 9]
-            
-            # 2. חילוץ שם סרטון
-            [cite_start]elif [[ $URL == *"v="* ]]; then [cite: 10]
-              [cite_start]ID=$(echo $URL | grep -oP 'v=\K[^&]+') [cite: 10]
-              [cite_start]RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty') [cite: 10]
-            
-            # 3. חילוץ שם ערוץ (חדש - תומך ב-@)
+          if [ -n "$API_KEY" ]; then
+            if [[ $URL == *"list="* ]]; then
+              ID=$(echo $URL | grep -oP 'list=\K[^&]+')
+              RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
+            elif [[ $URL == *"v="* ]]; then
+              ID=$(echo $URL | grep -oP 'v=\K[^&]+')
+              RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
             elif [[ $URL == *"@"* ]]; then
               HANDLE=$(echo $URL | grep -oP '@\K[^/?]+')
               RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=snippet&forHandle=$HANDLE&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
             fi
             
-            [cite_start]if [ -n "$RAW_NAME" ] && [ "$RAW_NAME" != "null" ]; then [cite: 11]
-              [cite_start]FINAL_NAME=$(echo "$RAW_NAME" | tr -d '"/\\?%*:|"<>') [cite: 11]
+            if [ -n "$RAW_NAME" ] && [ "$RAW_NAME" != "null" ]; then
+              FINAL_NAME=$(echo "$RAW_NAME" | tr -d '"/\\?%*:|"<>')
             fi
           fi
-
           echo "FINAL_NAME=$FINAL_NAME" >> $GITHUB_ENV
-          echo "Name from API: $FINAL_NAME"
 
       - name: Run Download
         run: |
-          export PATH="$HOME/.deno/bin:$PATH" [cite: 12]
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" [cite: 12]
+          export PATH="$HOME/.deno/bin:$PATH"
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           mkdir -p output_folder
-
+          
           case "${{ github.event.inputs.quality_profile }}" in
-            [cite_start]"high_video") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;; [cite: 12]
-            [cite_start]"mp4_1080") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;; [cite: 13]
-            [cite_start]"fast_video") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;; [cite: 14]
-            [cite_start]"high_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3" ;; [cite: 15]
-            [cite_start]"fast_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3" ;; [cite: 16]
-          [cite_start]esac [cite: 17]
+            "fast_video") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "mp4_720") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[height<=720]+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "mp4_1080") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[height<=1080]+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "high_2k") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[height<=1440]+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "high_4k") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[height<=2160]+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "high_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3" ;;
+            "fast_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3" ;;
+            "flac_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.flac" ;;
+            "wav_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.wav" ;;
+          esac
 
           zip -r "${{ env.FINAL_NAME }}.zip" output_folder/ -j
 
