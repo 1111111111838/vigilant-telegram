@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V6.7
+name: YouTube Downloader Final V6.8
 
 on:
   workflow_dispatch:
@@ -53,16 +53,30 @@ jobs:
           # יצירת תיקיית עבודה נקייה
           mkdir -p output_folder
 
-          # הורדה בפועל
+          # חילוץ השם לפי סדר העדיפויות החדש: פלייליסט -> ערוץ -> מעלה -> כותרת
+          # השתמשתי בפורמט שמבטיח עדיפות לפלייליסט
+          RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --print "%(playlist_title,channel,uploader,title)s" --playlist-items 1 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>')
+          
+          # אם השם עדיין ריק
+          if [ -z "$RAW_NAME" ] || [ "$RAW_NAME" == "NA" ]; then 
+            RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"; 
+          fi
+          
+          echo "FINAL_NAME=$RAW_NAME" >> $GITHUB_ENV
+          echo "שם שזוהה למשימה (עדיפות לפלייליסט): $RAW_NAME"
+
+          OUT_TEMPLATE="output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
+          
+          # ביצוע ההורדה
           case "${{ github.event.inputs.quality_profile }}" in
             "high_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
               ;;
             "mp4_1080")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
               ;;
             "fast_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
               ;;
             "high_mp3")
               yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3"
@@ -70,25 +84,21 @@ jobs:
             "fast_mp3")
               yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3"
               ;;
+            "flac_audio")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.flac"
+              ;;
+            "wav_audio")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.wav"
+              ;;
           esac
 
-          # עכשיו נחלץ את שם הערוץ/פלייליסט בצורה בטוחה מהמטא-דאטה של ההורדה
-          RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --print "%(channel,playlist_title,uploader,title)s" --playlist-items 1 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>')
+          # כיווץ התיקייה ל-ZIP עם השם שחולץ
+          zip -r "${RAW_NAME}.zip" output_folder/ -j
           
-          if [ -z "$RAW_NAME" ]; then RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"; fi
-          
-          echo "FINAL_NAME=$RAW_NAME" >> $GITHUB_ENV
-          
-          # יצירת ה-ZIP מהתיקייה
-          cd output_folder
-          zip -r "../${RAW_NAME}.zip" .
-          cd ..
-
       - name: Verify and Upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          # שם ה-Artifact יהיה השם שחולץ
           name: ${{ env.FINAL_NAME }}
           path: "*.zip"
           if-no-files-found: warn
