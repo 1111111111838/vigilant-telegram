@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V6.2
+name: YouTube Downloader Final V6.3
 
 on:
   workflow_dispatch:
@@ -37,24 +37,24 @@ jobs:
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+          
+          # חילוץ שם הפלייליסט/אלבום/ערוץ לטובת שם הזיפ
+          COLLECTION_NAME=$(yt-dlp --get-filename -o "%(playlist_title|channel)s" --cookies cookies.txt --user-agent "$UA" "${{ github.event.inputs.video_url }}" | head -n 1 || echo "download")
+          echo "COLLECTION_NAME=$COLLECTION_NAME" >> $GITHUB_ENV
+
+          # הגדרת תבנית השם לקבצים בתוך התיקייה
           TEMPLATE="${{ github.event.inputs.file_name }}.%(ext)s"
           
           case "${{ github.event.inputs.quality_profile }}" in
             "fast_video") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
-            "mp4_720") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[height<=720]+bestaudio[ext=m4a]/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
             "mp4_1080") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[height<=1080]+bestaudio[ext=m4a]/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
-            "high_2k") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[height<=1440]+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
             "high_4k") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
-            "mkv_remux") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mkv "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
             "high_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3" ;;
-            "fast_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3" ;;
-            "flac_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "%(title)s.flac" ;;
             "wav_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "%(title)s.wav" ;;
           esac
 
-          if [ $(ls | grep -E '\.(mp4|mp3|mkv|webm|flac|wav)$' | wc -l) -gt 1 ]; then
-            zip -r "playlist_download.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm" "*.flac" "*.wav"
-          fi
+          # יצירת קובץ ZIP עם שם הפלייליסט/ערוץ
+          zip -r "${COLLECTION_NAME}.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm" "*.flac" "*.wav"
 
       - name: Verify and Upload
         if: always()
@@ -65,8 +65,7 @@ jobs:
             *.mp4
             *.mp3
             *.mkv
-            *.flac
             *.wav
-            playlist_download.zip
+            *.zip
           if-no-files-found: warn
           retention-days: 1
