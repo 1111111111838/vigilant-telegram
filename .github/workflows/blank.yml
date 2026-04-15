@@ -1,10 +1,10 @@
-name: YouTube Downloader Final V6.3
+name: YouTube Downloader Final V6.4
 
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'קישור לסרטון או פלייליסט'
+        description: 'קישור לסרטון, פלייליסט או ערוץ'
         required: true
       quality_profile:
         description: 'פרופיל איכות'
@@ -50,13 +50,18 @@ jobs:
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           
-          # חילוץ שם האוסף לטובת שם הזיפ
-          COLLECTION_NAME=$(yt-dlp --get-filename -o "%(playlist_title|channel|title)s" --cookies cookies.txt --user-agent "$UA" "${{ github.event.inputs.video_url }}" | head -n 1 | sed 's/[^a-zA-Z0-9._-]/_/g')
-          echo "ZIP_NAME=$COLLECTION_NAME" >> $GITHUB_ENV
+          # חילוץ שם הערוץ/פלייליסט/סרטון בסדר עדיפות זה
+          # sed מנקה תווים לא חוקיים בשמות קבצים
+          RAW_NAME=$(yt-dlp --get-filename -o "%(channel|playlist_title|title)s" --cookies cookies.txt --user-agent "$UA" "${{ github.event.inputs.video_url }}" | head -n 1 | sed 's/[^a-zA-Z0-9._-]/_/g')
           
+          # הגנה מפני שם ריק
+          if [ -z "$RAW_NAME" ]; then RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"; fi
+          
+          echo "ZIP_NAME=$RAW_NAME" >> $GITHUB_ENV
+          echo "שם הערוץ/אוסף שזוהה: $RAW_NAME"
+
           OUT_TEMPLATE="${{ github.event.inputs.file_name }}.%(ext)s"
           
-          # תיקון המבנה של ה-case
           case "${{ github.event.inputs.quality_profile }}" in
             "high_video")
               yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
@@ -81,8 +86,8 @@ jobs:
               ;;
           esac
 
-          # יצירת קובץ ה-ZIP
-          zip -r "${COLLECTION_NAME}.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm" "*.flac" "*.wav"
+          # יצירת ה-ZIP
+          zip -r "${RAW_NAME}.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm" "*.flac" "*.wav"
 
       - name: Verify and Upload
         if: always()
