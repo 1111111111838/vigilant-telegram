@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V6.9
+name: YouTube Downloader Final V7.0
 
 on:
   workflow_dispatch:
@@ -45,45 +45,40 @@ jobs:
       - name: Install yt-dlp
         run: python3 -m pip install -U yt-dlp
 
-      - name: Run Download
+      - name: Run Download and Extract Name
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           
           mkdir -p output_folder
 
-          # שלב חילוץ שם חכם - מנסה פלייליסט, אחר כך ערוץ, אחר כך כותרת
-          # משתמשים ב-print עם JSON כדי לוודא שאנחנו לא מפספסים מידע
+          # חילוץ שם (עדיפות לפלייליסט/אלבום)
           RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --quiet --playlist-items 1 --print "%(playlist_title,channel,uploader,title)s" "${{ github.event.inputs.video_url }}" | head -n 1)
           
-          # ניקוי תווים שאסורים בשמות קבצים בלי למחוק עברית
+          # ניקוי תווים אסורים
           CLEAN_NAME=$(echo "$RAW_NAME" | tr -d '"/\\?%*:|"<>')
           
-          # אם עדיין יצא ריק או NA, ננסה לחלץ ישירות מהכותרת של הפלייליסט
-          if [ -z "$CLEAN_NAME" ] || [ "$CLEAN_NAME" == "NA" ]; then
-             CLEAN_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --get-filename -o "%(playlist_title)s" --playlist-items 0 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>' )
-          fi
-
-          # הגנת Fallback סופית
+          # בדיקת Fallback אם ריק או NA
           if [ -z "$CLEAN_NAME" ] || [ "$CLEAN_NAME" == "NA" ]; then
              CLEAN_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"
           fi
           
+          # הגדרת המשתנה לשימוש בשלבים הבאים - קריטי!
           echo "FINAL_NAME=$CLEAN_NAME" >> $GITHUB_ENV
-          echo "שם סופי שנבחר לארטיפקט: $CLEAN_NAME"
-
-          OUT_TEMPLATE="output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
+          echo "ZIP_NAME=$CLEAN_NAME" >> $GITHUB_ENV
           
-          # ביצוע ההורדה
+          echo "Selected Name: $CLEAN_NAME"
+
+          # ביצוע ההורדה לתוך התיקייה
           case "${{ github.event.inputs.quality_profile }}" in
             "high_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
               ;;
             "mp4_1080")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
               ;;
             "fast_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
               ;;
             "high_mp3")
               yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3"
@@ -91,21 +86,16 @@ jobs:
             "fast_mp3")
               yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3"
               ;;
-            "flac_audio")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.flac"
-              ;;
-            "wav_audio")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.wav"
-              ;;
           esac
 
           # כיווץ ל-ZIP
           zip -r "${CLEAN_NAME}.zip" output_folder/ -j
-          
+
       - name: Verify and Upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
+          # שימוש במשתנה הסביבה שהגדרנו למעלה
           name: ${{ env.FINAL_NAME }}
           path: "*.zip"
           if-no-files-found: warn
