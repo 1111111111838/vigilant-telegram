@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V6.1
+name: YouTube Downloader Final V6.2
 
 on:
   workflow_dispatch:
@@ -47,6 +47,7 @@ jobs:
             "high_4k") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
             "mkv_remux") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mkv "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
             "high_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3" ;;
+            "fast_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3" ;;
             "flac_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "%(title)s.flac" ;;
             "wav_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "%(title)s.wav" ;;
           esac
