@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V6.5
+name: YouTube Downloader Final V6.6
 
 on:
   workflow_dispatch:
@@ -50,12 +50,14 @@ jobs:
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           
-          # חילוץ שם יציב יותר (ערוץ/פלייליסט/סרטון)
-          # השתמשנו ב-print כדי לא להסתמך על get-filename שקורס לפעמים
-          RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --print "%(channel,playlist_title,title)q" --playlist-items 1 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>' | sed 's/ /_/g')
+          # חילוץ שם מעלה התוכן/פלייליסט/סרטון - הכי יציב לערוצים
+          # השתמשנו ב-uploader כעדיפות ראשונה
+          RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --print "%(uploader,playlist_title,title)q" --playlist-items 1 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>' | sed 's/ /_/g')
           
-          # הגנה מפני שם ריק
-          if [ -z "$RAW_NAME" ]; then RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"; fi
+          # אם השם עדיין ריק או מכיל תווים בעייתיים, ננסה לחלץ מהכותרת של הדף
+          if [ -z "$RAW_NAME" ] || [ "$RAW_NAME" == "NA" ]; then
+            RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"
+          fi
           
           echo "ZIP_NAME=$RAW_NAME" >> $GITHUB_ENV
           echo "שם שזוהה למשימה: $RAW_NAME"
