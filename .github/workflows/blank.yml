@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V7.0
+name: YouTube Downloader Final V7.1
 
 on:
   workflow_dispatch:
@@ -45,31 +45,33 @@ jobs:
       - name: Install yt-dlp
         run: python3 -m pip install -U yt-dlp
 
-      - name: Run Download and Extract Name
+      - name: Run Download and Save Artifact Name
+        id: dl_step
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           
           mkdir -p output_folder
 
-          # חילוץ שם (עדיפות לפלייליסט/אלבום)
+          # חילוץ שם יסודי (פלייליסט -> ערוץ -> מעלה -> כותרת)
+          # הוספתי הגנה מפני תווים שבורים בעברית
           RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --quiet --playlist-items 1 --print "%(playlist_title,channel,uploader,title)s" "${{ github.event.inputs.video_url }}" | head -n 1)
           
-          # ניקוי תווים אסורים
+          # ניקוי תווים לא חוקיים למערכת קבצים
           CLEAN_NAME=$(echo "$RAW_NAME" | tr -d '"/\\?%*:|"<>')
           
-          # בדיקת Fallback אם ריק או NA
+          # אם השם ריק או NA, ניתן שם גנרי
           if [ -z "$CLEAN_NAME" ] || [ "$CLEAN_NAME" == "NA" ]; then
              CLEAN_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"
           fi
-          
-          # הגדרת המשתנה לשימוש בשלבים הבאים - קריטי!
+
+          # כתיבת השם לקובץ הסביבה של גיטהאב (חשוב מאוד להעלאה!)
           echo "FINAL_NAME=$CLEAN_NAME" >> $GITHUB_ENV
           echo "ZIP_NAME=$CLEAN_NAME" >> $GITHUB_ENV
           
-          echo "Selected Name: $CLEAN_NAME"
+          echo "Target Artifact Name: $CLEAN_NAME"
 
-          # ביצוע ההורדה לתוך התיקייה
+          # ביצוע ההורדה
           case "${{ github.event.inputs.quality_profile }}" in
             "high_video")
               yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
@@ -88,14 +90,14 @@ jobs:
               ;;
           esac
 
-          # כיווץ ל-ZIP
+          # יצירת הזיפ
           zip -r "${CLEAN_NAME}.zip" output_folder/ -j
 
-      - name: Verify and Upload
+      - name: Verify and Upload Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          # שימוש במשתנה הסביבה שהגדרנו למעלה
+          # כאן אנחנו משתמשים במשתנה שהזרקנו ל-ENV בשלב הקודם
           name: ${{ env.FINAL_NAME }}
           path: "*.zip"
           if-no-files-found: warn
