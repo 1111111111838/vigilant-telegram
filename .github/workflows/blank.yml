@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V6.8
+name: YouTube Downloader Final V6.9
 
 on:
   workflow_dispatch:
@@ -50,20 +50,27 @@ jobs:
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           
-          # יצירת תיקיית עבודה נקייה
           mkdir -p output_folder
 
-          # חילוץ השם לפי סדר העדיפויות החדש: פלייליסט -> ערוץ -> מעלה -> כותרת
-          # השתמשתי בפורמט שמבטיח עדיפות לפלייליסט
-          RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --print "%(playlist_title,channel,uploader,title)s" --playlist-items 1 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>')
+          # שלב חילוץ שם חכם - מנסה פלייליסט, אחר כך ערוץ, אחר כך כותרת
+          # משתמשים ב-print עם JSON כדי לוודא שאנחנו לא מפספסים מידע
+          RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --quiet --playlist-items 1 --print "%(playlist_title,channel,uploader,title)s" "${{ github.event.inputs.video_url }}" | head -n 1)
           
-          # אם השם עדיין ריק
-          if [ -z "$RAW_NAME" ] || [ "$RAW_NAME" == "NA" ]; then 
-            RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"; 
+          # ניקוי תווים שאסורים בשמות קבצים בלי למחוק עברית
+          CLEAN_NAME=$(echo "$RAW_NAME" | tr -d '"/\\?%*:|"<>')
+          
+          # אם עדיין יצא ריק או NA, ננסה לחלץ ישירות מהכותרת של הפלייליסט
+          if [ -z "$CLEAN_NAME" ] || [ "$CLEAN_NAME" == "NA" ]; then
+             CLEAN_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --get-filename -o "%(playlist_title)s" --playlist-items 0 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>' )
+          fi
+
+          # הגנת Fallback סופית
+          if [ -z "$CLEAN_NAME" ] || [ "$CLEAN_NAME" == "NA" ]; then
+             CLEAN_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"
           fi
           
-          echo "FINAL_NAME=$RAW_NAME" >> $GITHUB_ENV
-          echo "שם שזוהה למשימה (עדיפות לפלייליסט): $RAW_NAME"
+          echo "FINAL_NAME=$CLEAN_NAME" >> $GITHUB_ENV
+          echo "שם סופי שנבחר לארטיפקט: $CLEAN_NAME"
 
           OUT_TEMPLATE="output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
           
@@ -92,8 +99,8 @@ jobs:
               ;;
           esac
 
-          # כיווץ התיקייה ל-ZIP עם השם שחולץ
-          zip -r "${RAW_NAME}.zip" output_folder/ -j
+          # כיווץ ל-ZIP
+          zip -r "${CLEAN_NAME}.zip" output_folder/ -j
           
       - name: Verify and Upload
         if: always()
