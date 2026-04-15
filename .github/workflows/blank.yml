@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V4.1
+name: YouTube Downloader Final V4.2
 
 on:
   workflow_dispatch:
@@ -11,11 +11,11 @@ on:
         required: true
         default: 'mp4_standard'
       file_name:
-        description: 'שם קובץ (אופציונלי - אם ריק ישתמש בכותרת מיוטיוב)'
+        description: 'שם קובץ (אופציונלי)'
         required: false
         default: '%(title)s'
       dynamic_cookies:
-        description: 'עוגיות מהתוסף (Base64)'
+        description: 'עוגיות מהתוסף'
         required: false
 
 env:
@@ -39,12 +39,9 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.dynamic_cookies }}" ]; then
             echo "${{ github.event.inputs.dynamic_cookies }}" | base64 --decode > cookies.txt
-            echo "Using dynamic cookies from extension."
           elif [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
             echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-            echo "Using static cookies from Secrets."
           else
-            echo "No cookies provided, using empty file."
             touch cookies.txt
           fi
 
@@ -55,11 +52,7 @@ jobs:
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
-          
-          # שימוש בשם שנשלח מהתוסף (דינמי) או בכותרת הסרטון
           OUT_TEMPLATE="${{ github.event.inputs.file_name }}.%(ext)s"
-          
-          echo "Starting download for: ${{ github.event.inputs.video_url }}"
           
           case "${{ github.event.inputs.quality_profile }}" in
             "high_video")
@@ -69,7 +62,7 @@ jobs:
               yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
               ;;
             "fast_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
               ;;
             "high_mp3")
               yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3"
@@ -79,10 +72,9 @@ jobs:
               ;;
           esac
 
-          # טיפול בפלייליסט: אם נוצרו יותר מקובץ מדיה אחד, נארוז את כולם ל-ZIP
+          # איחוד לפלייליסט במידה ויש יותר מקובץ אחד
           FILE_COUNT=$(ls | grep -E '\.(mp4|mp3|mkv|webm)$' | wc -l)
           if [ "$FILE_COUNT" -gt 1 ]; then
-            echo "Multiple files detected, creating ZIP archive..."
             zip -r "playlist_download.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm"
           fi
 
