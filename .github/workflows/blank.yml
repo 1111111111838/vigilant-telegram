@@ -1,4 +1,4 @@
-name: YouTube Downloader Final V6.6
+name: YouTube Downloader Final V6.7
 
 on:
   workflow_dispatch:
@@ -50,58 +50,46 @@ jobs:
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           
-          # חילוץ שם מעלה התוכן/פלייליסט/סרטון - הכי יציב לערוצים
-          # השתמשנו ב-uploader כעדיפות ראשונה
-          RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --print "%(uploader,playlist_title,title)q" --playlist-items 1 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>' | sed 's/ /_/g')
-          
-          # אם השם עדיין ריק או מכיל תווים בעייתיים, ננסה לחלץ מהכותרת של הדף
-          if [ -z "$RAW_NAME" ] || [ "$RAW_NAME" == "NA" ]; then
-            RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"
-          fi
-          
-          echo "ZIP_NAME=$RAW_NAME" >> $GITHUB_ENV
-          echo "שם שזוהה למשימה: $RAW_NAME"
+          # יצירת תיקיית עבודה נקייה
+          mkdir -p output_folder
 
-          OUT_TEMPLATE="${{ github.event.inputs.file_name }}.%(ext)s"
-          
+          # הורדה בפועל
           case "${{ github.event.inputs.quality_profile }}" in
             "high_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
               ;;
             "mp4_1080")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
               ;;
             "fast_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
               ;;
             "high_mp3")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3"
               ;;
             "fast_mp3")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3"
-              ;;
-            "flac_audio")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "%(title)s.flac"
-              ;;
-            "wav_audio")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "%(title)s.wav"
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3"
               ;;
           esac
 
-          # יצירת ה-ZIP
-          zip -r "${RAW_NAME}.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm" "*.flac" "*.wav"
+          # עכשיו נחלץ את שם הערוץ/פלייליסט בצורה בטוחה מהמטא-דאטה של ההורדה
+          RAW_NAME=$(yt-dlp --cookies cookies.txt --user-agent "$UA" --print "%(channel,playlist_title,uploader,title)s" --playlist-items 1 "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '"/\\?%*:|"<>')
+          
+          if [ -z "$RAW_NAME" ]; then RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"; fi
+          
+          echo "FINAL_NAME=$RAW_NAME" >> $GITHUB_ENV
+          
+          # יצירת ה-ZIP מהתיקייה
+          cd output_folder
+          zip -r "../${RAW_NAME}.zip" .
+          cd ..
 
       - name: Verify and Upload
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.ZIP_NAME }}
-          path: |
-            *.mp4
-            *.mp3
-            *.mkv
-            *.flac
-            *.wav
-            *.zip
+          # שם ה-Artifact יהיה השם שחולץ
+          name: ${{ env.FINAL_NAME }}
+          path: "*.zip"
           if-no-files-found: warn
           retention-days: 1
