@@ -50,15 +50,15 @@ jobs:
           export PATH="$HOME/.deno/bin:$PATH"
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           
-          # חילוץ שם הערוץ/פלייליסט/סרטון בסדר עדיפות זה
-          # sed מנקה תווים לא חוקיים בשמות קבצים
-          RAW_NAME=$(yt-dlp --get-filename -o "%(channel|playlist_title|title)s" --cookies cookies.txt --user-agent "$UA" "${{ github.event.inputs.video_url }}" | head -n 1 | sed 's/[^a-zA-Z0-9._-]/_/g')
+          # חילוץ שם (ערוץ/פלייליסט/סרטון) - תומך בעברית
+          # ה-tr מנקה רק תווים שאסור שיופיעו בשם קובץ
+          RAW_NAME=$(yt-dlp --get-filename -o "%(channel|playlist_title|title)s" --cookies cookies.txt --user-agent "$UA" "${{ github.event.inputs.video_url }}" | head -n 1 | tr -d '/\\?%*:|"<>')
           
           # הגנה מפני שם ריק
           if [ -z "$RAW_NAME" ]; then RAW_NAME="yt_download_$(date +%Y%m%d_%H%M%S)"; fi
           
           echo "ZIP_NAME=$RAW_NAME" >> $GITHUB_ENV
-          echo "שם הערוץ/אוסף שזוהה: $RAW_NAME"
+          echo "שם שזוהה: $RAW_NAME"
 
           OUT_TEMPLATE="${{ github.event.inputs.file_name }}.%(ext)s"
           
@@ -86,7 +86,7 @@ jobs:
               ;;
           esac
 
-          # יצירת ה-ZIP
+          # יצירת ה-ZIP עם השם המקורי (כולל עברית)
           zip -r "${RAW_NAME}.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm" "*.flac" "*.wav"
 
       - name: Verify and Upload
