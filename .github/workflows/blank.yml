@@ -3,10 +3,20 @@ name: YouTube Downloader Final V6.3
 on:
   workflow_dispatch:
     inputs:
-      video_url: { required: true }
-      quality_profile: { required: true, default: 'fast_video' }
-      file_name: { required: false, default: '%(title)s' }
-      dynamic_cookies: { required: false }
+      video_url:
+        description: 'קישור לסרטון או פלייליסט'
+        required: true
+      quality_profile:
+        description: 'פרופיל איכות'
+        required: true
+        default: 'fast_video'
+      file_name:
+        description: 'שם קובץ (אופציונלי)'
+        required: false
+        default: '%(title)s'
+      dynamic_cookies:
+        description: 'עוגיות מהתוסף'
+        required: false
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -15,57 +25,77 @@ jobs:
   download:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout Code
+        [cite_start]uses: actions/checkout@v4 [cite: 1]
 
       - name: Install Tools (FFmpeg & Deno)
         run: |
-          sudo apt-get update && sudo apt-get install -y ffmpeg zip
-          curl -fsSL https://deno.land/install.sh | sh
-          echo "$HOME/.deno/bin" >> $GITHUB_PATH
+          sudo apt-get update && sudo apt-get install -y ffmpeg zip [cite: 3]
+          curl -fsSL https://deno.land/install.sh | sh [cite: 3, 4]
+          echo "$HOME/.deno/bin" >> $GITHUB_PATH [cite: 4]
 
       - name: Setup Cookies
         run: |
           if [ -n "${{ github.event.inputs.dynamic_cookies }}" ]; then
-            echo "${{ github.event.inputs.dynamic_cookies }}" | base64 --decode > cookies.txt
+            echo "${{ github.event.inputs.dynamic_cookies }}" | base64 --decode > cookies.txt [cite: 5, 6]
+          elif [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
+            echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt [cite: 7]
+          else
+            touch cookies.txt
           fi
 
       - name: Install yt-dlp
-        run: python3 -m pip install -U yt-dlp
+        [cite_start]run: python3 -m pip install -U yt-dlp [cite: 7]
 
       - name: Run Download
         run: |
-          export PATH="$HOME/.deno/bin:$PATH"
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+          export PATH="$HOME/.deno/bin:$PATH" [cite: 8]
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36" [cite: 8]
           
-          # חילוץ שם הפלייליסט/אלבום/ערוץ לטובת שם הזיפ
-          COLLECTION_NAME=$(yt-dlp --get-filename -o "%(playlist_title|channel)s" --cookies cookies.txt --user-agent "$UA" "${{ github.event.inputs.video_url }}" | head -n 1 || echo "download")
-          echo "COLLECTION_NAME=$COLLECTION_NAME" >> $GITHUB_ENV
-
-          # הגדרת תבנית השם לקבצים בתוך התיקייה
-          TEMPLATE="${{ github.event.inputs.file_name }}.%(ext)s"
+          # חילוץ שם האוסף (פלייליסט/ערוץ) לטובת שם הזיפ בסוף
+          COLLECTION_NAME=$(yt-dlp --get-filename -o "%(playlist_title|channel|title)s" --cookies cookies.txt --user-agent "$UA" "${{ github.event.inputs.video_url }}" | head -n 1 | sed 's/[^a-zA-Z0-9._-]/_/g')
+          echo "ZIP_NAME=$COLLECTION_NAME" >> $GITHUB_ENV
+          
+          [cite_start]OUT_TEMPLATE="${{ github.event.inputs.file_name }}.%(ext)s" [cite: 8]
           
           case "${{ github.event.inputs.quality_profile }}" in
-            "fast_video") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
-            "mp4_1080") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[height<=1080]+bestaudio[ext=m4a]/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
-            "high_4k") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$TEMPLATE" ;;
-            "high_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3" ;;
-            "wav_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "%(title)s.wav" ;;
-          esac
+            "high_video")
+              [cite_start]yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE" [cite: 8]
+              ;;
+            "mp4_standard" | "mp4_1080")
+              [cite_start]yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE" [cite: 10]
+              ;;
+            "fast_video")
+              [cite_start]yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE" [cite: 11]
+              ;;
+            "high_mp3")
+              [cite_start]yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3" [cite: 12]
+              ;;
+            "fast_mp3")
+              [cite_start]yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3" [cite: 13]
+              ;;
+            "flac_audio")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "%(title)s.flac"
+              ;;
+            "wav_audio")
+              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "%(title)s.wav"
+              ;;
+          [cite_start]esac [cite: 14]
 
-          # יצירת קובץ ZIP עם שם הפלייליסט/ערוץ
-          zip -r "${COLLECTION_NAME}.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm" "*.flac" "*.wav"
+          # יצירת קובץ ה-ZIP עם שם האוסף שחילצנו
+          zip -r "${COLLECTION_NAME}.zip" . [cite_start]-i "*.mp4" "*.mp3" "*.mkv" "*.webm" "*.flac" "*.wav" [cite: 15, 16]
 
       - name: Verify and Upload
-        if: always()
-        uses: actions/upload-artifact@v4
+        [cite_start]if: always() [cite: 17]
+        [cite_start]uses: actions/upload-artifact@v4 [cite: 17]
         with:
-          name: youtube-download
+          name: ${{ env.ZIP_NAME }}
           path: |
-            *.mp4
-            *.mp3
+            *.mp4 [cite: 17]
+            *.mp3 [cite: 17]
             *.mkv
+            *.flac
             *.wav
-            *.zip
-          if-no-files-found: warn
-          retention-days: 1
+            *.zip [cite: 17]
+          [cite_start]if-no-files-found: warn [cite: 17]
+          [cite_start]retention-days: 1 [cite: 17]
