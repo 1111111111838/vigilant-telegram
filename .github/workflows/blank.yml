@@ -1,37 +1,33 @@
-name: YouTube Downloader Final V4.2
+name: YouTube Downloader Final V5.0
 
 on:
   workflow_dispatch:
     inputs:
       video_url:
-        description: 'קישור לסרטון או פלייליסט'
+        description: 'URL'
         required: true
       quality_profile:
-        description: 'פרופיל איכות'
+        description: 'Profile'
         required: true
-        default: 'mp4_standard'
+        default: 'fast_video'
       file_name:
-        description: 'שם קובץ (אופציונלי)'
+        description: 'Name'
         required: false
         default: '%(title)s'
       dynamic_cookies:
-        description: 'עוגיות מהתוסף'
+        description: 'Cookies'
         required: false
-
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   download:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install Tools
+      - name: Tools
         run: |
-          sudo apt-get update
-          sudo apt-get install -y ffmpeg zip
+          sudo apt-get update && sudo apt-get install -y ffmpeg zip
           curl -fsSL https://deno.land/install.sh | sh
           echo "$HOME/.deno/bin" >> $GITHUB_PATH
 
@@ -39,10 +35,6 @@ jobs:
         run: |
           if [ -n "${{ github.event.inputs.dynamic_cookies }}" ]; then
             echo "${{ github.event.inputs.dynamic_cookies }}" | base64 --decode > cookies.txt
-          elif [ -n "${{ secrets.YOUTUBE_COOKIES }}" ]; then
-            echo "${{ secrets.YOUTUBE_COOKIES }}" > cookies.txt
-          else
-            touch cookies.txt
           fi
 
       - name: Install yt-dlp
@@ -55,37 +47,26 @@ jobs:
           OUT_TEMPLATE="${{ github.event.inputs.file_name }}.%(ext)s"
           
           case "${{ github.event.inputs.quality_profile }}" in
-            "high_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
-              ;;
-            "mp4_standard")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
-              ;;
-            "fast_video")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE"
-              ;;
-            "high_mp3")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3"
-              ;;
-            "fast_mp3")
-              yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3"
-              ;;
+            "high_video") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE" ;;
+            "mp4_standard") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=mp4][height<=1080]+bestaudio[ext=m4a]/best[ext=mp4]/best" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE" ;;
+            "fast_video") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "worstvideo+worstaudio/worst" --merge-output-format mp4 "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE" ;;
+            "high_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "%(title)s.mp3" ;;
+            "webm_format") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo[ext=webm]+bestaudio[ext=webm]/best" "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE" ;;
+            "mkv_format") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components ejs:github -f "bestvideo+bestaudio/best" --merge-output-format mkv "${{ github.event.inputs.video_url }}" -o "$OUT_TEMPLATE" ;;
           esac
 
-          # איחוד לפלייליסט במידה ויש יותר מקובץ אחד
-          FILE_COUNT=$(ls | grep -E '\.(mp4|mp3|mkv|webm)$' | wc -l)
-          if [ "$FILE_COUNT" -gt 1 ]; then
+          if [ $(ls | grep -E '\.(mp4|mp3|mkv|webm)$' | wc -l) -gt 1 ]; then
             zip -r "playlist_download.zip" . -i "*.mp4" "*.mp3" "*.mkv" "*.webm"
           fi
 
-      - name: Verify and Upload
-        if: always()
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
           name: youtube-download
           path: |
             *.mp4
             *.mp3
+            *.mkv
+            *.webm
             playlist_download.zip
           if-no-files-found: warn
-          retention-days: 1
