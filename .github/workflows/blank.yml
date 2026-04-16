@@ -1,4 +1,4 @@
-name: YouTube & Telegram Downloader V8.0 (Ultimate Fix)
+name: YouTube & Telegram Downloader V8.1 (Bypass Edition)
 
 on:
   workflow_dispatch:
@@ -45,41 +45,39 @@ jobs:
 
           if [[ "$URL" == *"youtube.com"* || "$URL" == *"youtu.be"* ]]; then
             if [ -n "$API_KEY" ]; then
-              if [[ $URL == *"list="* ]]; then
-                ID=$(echo "$URL" | grep -oP 'list=\K[^&]+')
+              ID=$(echo "$URL" | grep -oP '(?:v=|list=)\K[^&]+' || echo "$URL" | awk -F'/' '{print $4}')
+              # ניסיון חילוץ שם לפי סוג (וידאו/פלייליסט/ערוץ)
+              if [[ "$URL" == *"list="* ]]; then
                 RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
-              elif [[ $URL == *"v="* ]]; then
-                ID=$(echo "$URL" | grep -oP 'v=\K[^&]+')
+              else
                 RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
-              elif [[ $URL == *"@"* ]]; then
-                HANDLE=$(echo "$URL" | grep -oP '@\K[^/?]+')
-                RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=snippet&forHandle=$HANDLE&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
               fi
-              if [ -n "$RAW_NAME" ] && [ "$RAW_NAME" != "null" ]; then
-                FINAL_NAME=$(echo "$RAW_NAME" | tr -d '"/\\?%*:|"<>')
-              fi
+              [ -n "$RAW_NAME" ] && [ "$RAW_NAME" != "null" ] && FINAL_NAME=$(echo "$RAW_NAME" | tr -d '"/\\?%*:|"<>')
             fi
           elif [[ "$URL" == *"t.me"* ]]; then
-            FINAL_NAME="telegram_content_$(date +%H%M)"
+            FINAL_NAME="telegram_$(date +%H%M)"
           fi
           echo "FINAL_NAME=$FINAL_NAME" >> $GITHUB_ENV
 
       - name: Run Download
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
-          # User-Agent חדש ואמין יותר
-          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
           mkdir -p output_folder
           
-          # הגדרות מיוחדות למניעת חסימות (הוספת referer לטלגרם)
+          # שימוש ב-User Agent של דפדפן אנדרואיד (טלגרם נוטה לאשר אותם יותר בקלות)
+          UA="Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
+          
+          # הגדרות מעקף אגרסיביות
           ARGS=(
             --cookies "cookies.txt"
             --user-agent "$UA"
             --no-check-certificate
             --allow-dynamic-mpd
             --referer "https://t.me/"
+            --ignore-errors
+            --no-warnings
             --geo-bypass
-            --add-header "Accept-Language:en-US,en;q=0.9"
+            --format-sort "res,ext:mp4:m4a"
             --merge-output-format "mp4"
           )
           
@@ -87,7 +85,7 @@ jobs:
           FILENAME_PATTERN="output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
 
           case "${{ github.event.inputs.quality_profile }}" in
-            "fast_video") yt-dlp "${ARGS[@]}" -f "worstvideo+worstaudio/worst" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
+            "fast_video") yt-dlp "${ARGS[@]}" -f "worst" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
             "mp4_720")    yt-dlp "${ARGS[@]}" -f "bestvideo[height<=720]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
             "mp4_1080")   yt-dlp "${ARGS[@]}" -f "bestvideo[height<=1080]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
             "high_2k")    yt-dlp "${ARGS[@]}" -f "bestvideo[height<=1440]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
