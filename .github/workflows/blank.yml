@@ -1,4 +1,4 @@
-name: YouTube & Telegram Downloader V8.1 (Bypass Edition)
+name: YouTube & Telegram Downloader V8.2 (Full Link Fix)
 
 on:
   workflow_dispatch:
@@ -36,70 +36,45 @@ jobs:
       - name: Install yt-dlp
         run: python3 -m pip install -U yt-dlp
 
-      - name: Extract Name via YouTube API
-        id: api_name
-        run: |
-          URL="${{ github.event.inputs.video_url }}"
-          API_KEY="${{ github.event.inputs.yt_api_key }}"
-          FINAL_NAME="download_$(date +%m%d_%H%M)"
-
-          if [[ "$URL" == *"youtube.com"* || "$URL" == *"youtu.be"* ]]; then
-            if [ -n "$API_KEY" ]; then
-              ID=$(echo "$URL" | grep -oP '(?:v=|list=)\K[^&]+' || echo "$URL" | awk -F'/' '{print $4}')
-              # ניסיון חילוץ שם לפי סוג (וידאו/פלייליסט/ערוץ)
-              if [[ "$URL" == *"list="* ]]; then
-                RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
-              else
-                RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
-              fi
-              [ -n "$RAW_NAME" ] && [ "$RAW_NAME" != "null" ] && FINAL_NAME=$(echo "$RAW_NAME" | tr -d '"/\\?%*:|"<>')
-            fi
-          elif [[ "$URL" == *"t.me"* ]]; then
-            FINAL_NAME="telegram_$(date +%H%M)"
-          fi
-          echo "FINAL_NAME=$FINAL_NAME" >> $GITHUB_ENV
-
       - name: Run Download
         run: |
           export PATH="$HOME/.deno/bin:$PATH"
           mkdir -p output_folder
           
-          # שימוש ב-User Agent של דפדפן אנדרואיד (טלגרם נוטה לאשר אותם יותר בקלות)
-          UA="Mozilla/5.0 (Linux; Android 10; SM-G981B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.162 Mobile Safari/537.36"
+          # ניקוי הקישור - המרת קישורי תצוגה מקדימה לקישורים ישירים
+          URL="${{ github.event.inputs.video_url }}"
+          CLEAN_URL=$(echo "$URL" | sed 's|t.me/s/|t.me/|g')
           
-          # הגדרות מעקף אגרסיביות
+          UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+          
           ARGS=(
             --cookies "cookies.txt"
             --user-agent "$UA"
             --no-check-certificate
             --allow-dynamic-mpd
             --referer "https://t.me/"
-            --ignore-errors
-            --no-warnings
-            --geo-bypass
             --format-sort "res,ext:mp4:m4a"
             --merge-output-format "mp4"
           )
           
-          URL="${{ github.event.inputs.video_url }}"
           FILENAME_PATTERN="output_folder/${{ github.event.inputs.file_name }}.%(ext)s"
 
           case "${{ github.event.inputs.quality_profile }}" in
-            "fast_video") yt-dlp "${ARGS[@]}" -f "worst" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
-            "mp4_720")    yt-dlp "${ARGS[@]}" -f "bestvideo[height<=720]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
-            "mp4_1080")   yt-dlp "${ARGS[@]}" -f "bestvideo[height<=1080]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
-            "high_2k")    yt-dlp "${ARGS[@]}" -f "bestvideo[height<=1440]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
-            "high_4k")    yt-dlp "${ARGS[@]}" -f "bestvideo[height<=2160]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$URL" -o "$FILENAME_PATTERN" ;;
-            "high_mp3")   yt-dlp --cookies "cookies.txt" --user-agent "$UA" -x --audio-format mp3 --audio-quality 0 "$URL" -o "output_folder/%(title)s.mp3" ;;
-            "fast_mp3")   yt-dlp --cookies "cookies.txt" --user-agent "$UA" -x --audio-format mp3 --audio-quality 9 "$URL" -o "output_folder/%(title)s.mp3" ;;
-            "flac_audio") yt-dlp --cookies "cookies.txt" --user-agent "$UA" -x --audio-format flac "$URL" -o "output_folder/%(title)s.flac" ;;
-            "wav_audio")  yt-dlp --cookies "cookies.txt" --user-agent "$UA" -x --audio-format wav "$URL" -o "output_folder/%(title)s.wav" ;;
+            "fast_video") yt-dlp "${ARGS[@]}" -f "worst" --postprocessor-args "ffmpeg:-c:a aac" "$CLEAN_URL" -o "$FILENAME_PATTERN" ;;
+            "mp4_720")    yt-dlp "${ARGS[@]}" -f "bestvideo[height<=720]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$CLEAN_URL" -o "$FILENAME_PATTERN" ;;
+            "mp4_1080")   yt-dlp "${ARGS[@]}" -f "bestvideo[height<=1080]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$CLEAN_URL" -o "$FILENAME_PATTERN" ;;
+            "high_2k")    yt-dlp "${ARGS[@]}" -f "bestvideo[height<=1440]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$CLEAN_URL" -o "$FILENAME_PATTERN" ;;
+            "high_4k")    yt-dlp "${ARGS[@]}" -f "bestvideo[height<=2160]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "$CLEAN_URL" -o "$FILENAME_PATTERN" ;;
+            "high_mp3")   yt-dlp --cookies "cookies.txt" --user-agent "$UA" -x --audio-format mp3 --audio-quality 0 "$CLEAN_URL" -o "output_folder/%(title)s.mp3" ;;
+            "fast_mp3")   yt-dlp --cookies "cookies.txt" --user-agent "$UA" -x --audio-format mp3 --audio-quality 9 "$CLEAN_URL" -o "output_folder/%(title)s.mp3" ;;
+            "flac_audio") yt-dlp --cookies "cookies.txt" --user-agent "$UA" -x --audio-format flac "$CLEAN_URL" -o "output_folder/%(title)s.flac" ;;
+            "wav_audio")  yt-dlp --cookies "cookies.txt" --user-agent "$UA" -x --audio-format wav "$CLEAN_URL" -o "output_folder/%(title)s.wav" ;;
           esac
 
       - name: Upload Artifact
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.FINAL_NAME }}
+          name: download_result
           path: output_folder/
           retention-days: 1
