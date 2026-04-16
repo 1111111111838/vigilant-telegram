@@ -1,4 +1,4 @@
-name: YouTube & Telegram Downloader V7.7 (Fixed Codecs & Telegram)
+name: YouTube & Telegram Downloader V7.8 (Fixed Quotations)
 
 on:
   workflow_dispatch:
@@ -70,20 +70,20 @@ jobs:
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           mkdir -p output_folder
           
-          # הגדרות לתיקון אודיו AAC ותמיכה באתרים כלליים
-          COMMON_ARGS="--cookies cookies.txt --user-agent '$UA' --no-check-certificate --allow-dynamic-mpd"
-          FIX_AUDIO="--postprocessor-args \"ffmpeg:-c:a aac\""
-
+          # הגדרות משותפות
+          COMMON="--cookies cookies.txt --user-agent '$UA' --no-check-certificate --allow-dynamic-mpd --merge-output-format mp4"
+          
+          # תיקון המרכאות עבור ה-Post Processor
           case "${{ github.event.inputs.quality_profile }}" in
-            "fast_video") yt-dlp $COMMON_ARGS -f "worstvideo+worstaudio/worst" --merge-output-format mp4 $FIX_AUDIO "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
-            "mp4_720") yt-dlp $COMMON_ARGS -f "bestvideo[height<=720]+bestaudio/best" --merge-output-format mp4 $FIX_AUDIO "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
-            "mp4_1080") yt-dlp $COMMON_ARGS -f "bestvideo[height<=1080]+bestaudio/best" --merge-output-format mp4 $FIX_AUDIO "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
-            "high_2k") yt-dlp $COMMON_ARGS -f "bestvideo[height<=1440]+bestaudio/best" --merge-output-format mp4 $FIX_AUDIO "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
-            "high_4k") yt-dlp $COMMON_ARGS -f "bestvideo[height<=2160]+bestaudio/best" --merge-output-format mp4 $FIX_AUDIO "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
-            "high_mp3") yt-dlp $COMMON_ARGS -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3" ;;
-            "fast_mp3") yt-dlp $COMMON_ARGS -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3" ;;
-            "flac_audio") yt-dlp $COMMON_ARGS -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.flac" ;;
-            "wav_audio") yt-dlp $COMMON_ARGS -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.wav" ;;
+            "fast_video") yt-dlp $COMMON -f "worstvideo+worstaudio/worst" --postprocessor-args "ffmpeg:-c:a aac" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "mp4_720") yt-dlp $COMMON -f "bestvideo[height<=720]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "mp4_1080") yt-dlp $COMMON -f "bestvideo[height<=1080]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "high_2k") yt-dlp $COMMON -f "bestvideo[height<=1440]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "high_4k") yt-dlp $COMMON -f "bestvideo[height<=2160]+bestaudio/best" --postprocessor-args "ffmpeg:-c:a aac" "${{ github.event.inputs.video_url }}" -o "output_folder/${{ github.event.inputs.file_name }}.%(ext)s" ;;
+            "high_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format mp3 --audio-quality 0 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3" ;;
+            "fast_mp3") yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format mp3 --audio-quality 9 "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.mp3" ;;
+            "flac_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format flac "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.flac" ;;
+            "wav_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format wav "${{ github.event.inputs.video_url }}" -o "output_folder/%(title)s.wav" ;;
           esac
 
       - name: Upload Artifact
