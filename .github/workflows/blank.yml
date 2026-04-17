@@ -1,4 +1,4 @@
-name: YouTube Downloader V8.4 (Fixed Post-Processor Formatting)
+name: YouTube Downloader V8.5 (Bypass YouTube N-Challenge)
 
 on:
   workflow_dispatch:
@@ -44,13 +44,13 @@ jobs:
           FINAL_NAME="yt_download_$(date +%m%d_%H%M)"
 
           if [ -n "$API_KEY" ]; then
-            if [[ $URL == *"list="* ]]; then
+            if [[ "$URL" == *"list="* ]]; then
               ID=$(echo "$URL" | grep -oP 'list=\K[^&]+')
               RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
-            elif [[ $URL == *"v="* ]]; then
+            elif [[ "$URL" == *"v="* ]]; then
               ID=$(echo "$URL" | grep -oP 'v=\K[^&]+')
               RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/videos?part=snippet&id=$ID&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
-            elif [[ $URL == *"@"* ]]; then
+            elif [[ "$URL" == *"@"* ]]; then
               HANDLE=$(echo "$URL" | grep -oP '@\K[^/?]+')
               RAW_NAME=$(curl -s "https://www.googleapis.com/youtube/v3/channels?part=snippet&forHandle=$HANDLE&key=$API_KEY" | jq -r '.items[0].snippet.title // empty')
             fi
@@ -67,11 +67,12 @@ jobs:
           UA="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
           mkdir -p output_folder
           
-          # הגדרות משותפות לווידאו (ממיר אודיו ל-AAC באופן אוטומטי)
-          # השימוש במערך מונע שגיאות מרכאות
+          # הגדרות משותפות הכוללות מעקף לחסימת יוטיוב (n-challenge)
+          # הוספנו את --remote-components ejs:github
           COMMON_OPTS=(
             --cookies "cookies.txt"
             --user-agent "$UA"
+            --remote-components "ejs:github"
             --merge-output-format "mp4"
             --recode-video "mp4"
             --postprocessor-args "ffmpeg:-c:a aac"
@@ -86,10 +87,10 @@ jobs:
             "mp4_1080")   yt-dlp "${COMMON_OPTS[@]}" -f "bestvideo[height<=1080]+bestaudio/best" "$URL" -o "$OUT_PATH" ;;
             "high_2k")    yt-dlp "${COMMON_OPTS[@]}" -f "bestvideo[height<=1440]+bestaudio/best" "$URL" -o "$OUT_PATH" ;;
             "high_4k")    yt-dlp "${COMMON_OPTS[@]}" -f "bestvideo[height<=2160]+bestaudio/best" "$URL" -o "$OUT_PATH" ;;
-            "high_mp3")   yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format mp3 --audio-quality 0 "$URL" -o "output_folder/%(title)s.mp3" ;;
-            "fast_mp3")   yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format mp3 --audio-quality 9 "$URL" -o "output_folder/%(title)s.mp3" ;;
-            "flac_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format flac "$URL" -o "output_folder/%(title)s.flac" ;;
-            "wav_audio")  yt-dlp --cookies cookies.txt --user-agent "$UA" -x --audio-format wav "$URL" -o "output_folder/%(title)s.wav" ;;
+            "high_mp3")   yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components "ejs:github" -x --audio-format mp3 --audio-quality 0 "$URL" -o "output_folder/%(title)s.mp3" ;;
+            "fast_mp3")   yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components "ejs:github" -x --audio-format mp3 --audio-quality 9 "$URL" -o "output_folder/%(title)s.mp3" ;;
+            "flac_audio") yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components "ejs:github" -x --audio-format flac "$URL" -o "output_folder/%(title)s.flac" ;;
+            "wav_audio")  yt-dlp --cookies cookies.txt --user-agent "$UA" --remote-components "ejs:github" -x --audio-format wav "$URL" -o "output_folder/%(title)s.wav" ;;
           esac
 
       - name: Upload Artifact
